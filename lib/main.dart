@@ -17,8 +17,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Notepad',
       theme: appTheme,
-      initialRoute: RouteNames.splashScreen,
       routes:AppRoutes.routes ,
+      initialRoute: RouteNames.splashScreen,
+      debugShowCheckedModeBanner: false,
     );
   }
 }

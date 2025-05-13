@@ -1,0 +1,1 @@
+final defaultDuration = Duration(milliseconds: 200);

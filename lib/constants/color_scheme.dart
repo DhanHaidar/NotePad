@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'package:flutter/material.dart';
 
 const primaryColor = Color(0xFFF6C90E);
 const darkGreyColor = Color(0xFF303841);
