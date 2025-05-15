@@ -17,7 +17,7 @@ class  Splashscreen extends StatelessWidget {
     navigateToMain(context);
     return  Scaffold(
       body: Center(
-        child: SvgPicture.asset('assets/icons/splash.svg'),
+        child: SvgPicture.asset('assets/icons/SplashScreen.svg'),
       ),
     );
   }
