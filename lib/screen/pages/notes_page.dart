@@ -58,6 +58,29 @@ class _NotesPageState extends State<NotesPage> {
       ),
     );
   }
+  void _showEditNoteDialog(int index) {
+    final note = _notes[index];
+    showDialog(
+      context: context,
+      builder: (context) => AddNoteDialog(
+        initialTitle: note['title'],
+        initialContent: note['content'],
+        onSave: (updatedTitle, updatedContent) {
+          setState(() {
+            // Cari index asli di _allNotes
+            final realIndex = _allNotes.indexOf(note);
+            _allNotes[realIndex] = {
+              'title': updatedTitle,
+              'content': updatedContent,
+            };
+            _applySearch(_inputSearchController.text);
+          });
+          _saveNotes();
+        },
+      ),
+    );
+  }
+
 
   void _applySearch(String query) {
     if (query.isEmpty) {
@@ -102,33 +125,39 @@ class _NotesPageState extends State<NotesPage> {
               ),
               itemBuilder: (context, index) {
                 final note = _notes[index];
-                return Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          note['title'] ?? '',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                return GestureDetector(
+                  onTap: () {
+                    _showEditNoteDialog(index);
+                  },
+                  child: Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            note['title'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: Text(
-                            note['content'] ?? '',
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 4,
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: Text(
+                              note['content'] ?? '',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 4,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
               },
+
             ),
           ),
         ],
