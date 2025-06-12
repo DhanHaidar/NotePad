@@ -8,13 +8,14 @@ class NotesPage extends StatefulWidget {
   const NotesPage({Key? key}) : super(key: key);
 
   @override
-  State<NotesPage> createState() => _NotesPageState();
+  State<NotesPage> createState() => NotesPageState();
 }
 
-class _NotesPageState extends State<NotesPage> {
+class NotesPageState extends State<NotesPage> {
   late TextEditingController _inputSearchController;
   List<Map<String, String>> _notes = [];
   List<Map<String, String>> _allNotes = [];
+  Set<int> _selectedIndexes = {};
 
   @override
   void initState() {
@@ -28,13 +29,20 @@ class _NotesPageState extends State<NotesPage> {
     final jsonString = prefs.getString('notes');
     if (jsonString != null) {
       final List decoded = json.decode(jsonString);
-      _allNotes = decoded.cast<Map<String, dynamic>>().map((e) => {
-        'title': e['title'] as String,
-        'content': e['content'] as String,
+      _allNotes = decoded.cast<Map<String, dynamic>>().map((e) {
+        return {
+          'title': e['title'] as String,
+          'content': e['content'] as String,
+          'labels': e['labels'] != null ? e['labels'] as String : '',
+        };
       }).toList();
       _notes = List.from(_allNotes);
       setState(() {});
     }
+  }
+
+  void reloadNotes() {
+    _loadNotes();
   }
 
   Future<void> _saveNotes() async {
@@ -43,13 +51,66 @@ class _NotesPageState extends State<NotesPage> {
     await prefs.setString('notes', jsonString);
   }
 
+  Future<void> _saveLabelsToPrefs(Set<String> labels) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('all_labels', labels.toList());
+  }
+
+  Future<void> _moveToTrash(List<Map<String, String>> notesToTrash) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString('trash_notes');
+    List<Map<String, String>> trashNotes = [];
+
+    if (jsonString != null) {
+      final List decoded = json.decode(jsonString);
+      trashNotes = decoded.cast<Map<String, dynamic>>().map((e) {
+        return {
+          'title': e['title'] as String,
+          'content': e['content'] as String,
+          'labels': e['labels'] != null ? e['labels'] as String : '',
+        };
+      }).toList();
+    }
+
+    trashNotes.addAll(notesToTrash);
+
+    final updatedJson = json.encode(trashNotes);
+    await prefs.setString('trash_notes', updatedJson);
+  }
+
+  Future<void> _moveToArchive(List<Map<String, String>> notesToArchive) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString('archive_notes');
+    List<Map<String, String>> archiveNotes = [];
+
+    if (jsonString != null) {
+      final List decoded = json.decode(jsonString);
+      archiveNotes = decoded.cast<Map<String, dynamic>>().map((e) {
+        return {
+          'title': e['title'] as String,
+          'content': e['content'] as String,
+          'labels': e['labels'] != null ? e['labels'] as String : '',
+        };
+      }).toList();
+    }
+
+    archiveNotes.addAll(notesToArchive);
+
+    final updatedJson = json.encode(archiveNotes);
+    await prefs.setString('archive_notes', updatedJson);
+  }
+
   void _showAddNoteDialog() {
     showDialog(
       context: context,
       builder: (context) => AddNoteDialog(
         onSave: (title, content) {
           setState(() {
-            final newNote = {'title': title, 'content': content};
+            final newNote = {
+              'title': title,
+              'content': content,
+              'labels': '',
+            };
             _allNotes.add(newNote);
             _applySearch(_inputSearchController.text);
           });
@@ -58,6 +119,7 @@ class _NotesPageState extends State<NotesPage> {
       ),
     );
   }
+
   void _showEditNoteDialog(int index) {
     final note = _notes[index];
     showDialog(
@@ -67,11 +129,11 @@ class _NotesPageState extends State<NotesPage> {
         initialContent: note['content'],
         onSave: (updatedTitle, updatedContent) {
           setState(() {
-            // Cari index asli di _allNotes
             final realIndex = _allNotes.indexOf(note);
             _allNotes[realIndex] = {
               'title': updatedTitle,
               'content': updatedContent,
+              'labels': _allNotes[realIndex]['labels'] ?? '',
             };
             _applySearch(_inputSearchController.text);
           });
@@ -81,38 +143,225 @@ class _NotesPageState extends State<NotesPage> {
     );
   }
 
-
   void _applySearch(String query) {
     if (query.isEmpty) {
       _notes = List.from(_allNotes);
     } else {
       _notes = _allNotes.where((note) {
         final lowerQuery = query.toLowerCase();
-        final titleMatch = note['title']?.toLowerCase().contains(lowerQuery) ?? false;
-        final contentMatch = note['content']?.toLowerCase().contains(lowerQuery) ?? false;
+        final titleMatch =
+            note['title']?.toLowerCase().contains(lowerQuery) ?? false;
+        final contentMatch =
+            note['content']?.toLowerCase().contains(lowerQuery) ?? false;
         return titleMatch || contentMatch;
       }).toList();
     }
     setState(() {});
   }
 
+  void _toggleSelection(int index) {
+    setState(() {
+      if (_selectedIndexes.contains(index)) {
+        _selectedIndexes.remove(index);
+      } else {
+        _selectedIndexes.add(index);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedIndexes.clear();
+    });
+  }
+
+  void _handleDeleteSelected() async {
+    final selectedNotes = _selectedIndexes.map((i) => _notes[i]).toList();
+
+    setState(() {
+      for (var note in selectedNotes) {
+        _allNotes.remove(note);
+      }
+      _applySearch(_inputSearchController.text);
+      _selectedIndexes.clear();
+    });
+
+    await _moveToTrash(selectedNotes);
+    await _saveNotes();
+  }
+
+  void _handlePinSelected() {
+    _clearSelection();
+  }
+
+  void _handleArchiveSelected() async {
+    final selectedNotes = _selectedIndexes.map((i) => _notes[i]).toList();
+
+    setState(() {
+      for (var note in selectedNotes) {
+        _allNotes.remove(note);
+      }
+      _applySearch(_inputSearchController.text);
+      _selectedIndexes.clear();
+    });
+
+    await _moveToArchive(selectedNotes);
+    await _saveNotes();
+  }
+
+  void _handleLabelSelected() {
+    _showLabelDialog();
+  }
+
+  void _showLabelDialog() async {
+    final allLabels = <String>{};
+
+    for (var note in _allNotes) {
+      if (note['labels'] != null && note['labels']!.isNotEmpty) {
+        final labelsList = (json.decode(note['labels']!) as List<dynamic>)
+            .map((e) => e.toString())
+            .toList();
+        allLabels.addAll(labelsList);
+      }
+    }
+
+    final selectedLabels = <String>{};
+    for (var index in _selectedIndexes) {
+      final note = _notes[index];
+      final noteLabels = (note['labels'] != null && note['labels']!.isNotEmpty)
+          ? (json.decode(note['labels']!) as List<dynamic>)
+          .map((e) => e.toString())
+          .toList()
+          : <String>[];
+      selectedLabels.addAll(noteLabels);
+    }
+
+    final TextEditingController labelController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Tambah / Pilih Label'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: labelController,
+                      decoration: const InputDecoration(
+                        labelText: 'Label baru',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 8,
+                          children: allLabels.map((label) {
+                            final isSelected = selectedLabels.contains(label);
+                            return FilterChip(
+                              label: Text(label),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    selectedLabels.add(label);
+                                  } else {
+                                    selectedLabels.remove(label);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final newLabel = labelController.text.trim();
+                    if (newLabel.isNotEmpty) {
+                      selectedLabels.add(newLabel);
+                      allLabels.add(newLabel);
+                    }
+
+                    for (var index in _selectedIndexes) {
+                      final note = _notes[index];
+                      final realIndex = _allNotes.indexOf(note);
+
+                      _allNotes[realIndex]['labels'] =
+                          json.encode(selectedLabels.toList());
+                    }
+
+                    await _saveLabelsToPrefs(allLabels);
+                    await _saveNotes();
+                    _clearSelection();
+                    Navigator.of(context).pop();
+                    setState(() {});
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectionAppBar() {
+    return AppBar(
+      backgroundColor: Colors.blueGrey,
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: _clearSelection,
+      ),
+      title: Text('${_selectedIndexes.length} dipilih'),
+      actions: [
+        IconButton(icon: const Icon(Icons.label), onPressed: _handleLabelSelected),
+        IconButton(icon: const Icon(Icons.push_pin), onPressed: _handlePinSelected),
+        IconButton(icon: const Icon(Icons.archive), onPressed: _handleArchiveSelected),
+        IconButton(icon: const Icon(Icons.delete), onPressed: _handleDeleteSelected),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[600],
-      // AppBar telah dihapus sesuai permintaan
+      appBar: _selectedIndexes.isNotEmpty
+          ? PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: _buildSelectionAppBar(),
+      )
+          : null,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SearchInput(
-              controller: _inputSearchController,
-              hint: 'Cari Note...',
-              onChanged: (query) {
-                _applySearch(query);
-              },
+          if (_selectedIndexes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SearchInput(
+                controller: _inputSearchController,
+                hint: 'Cari Note...',
+                onChanged: (query) {
+                  _applySearch(query);
+                },
+              ),
             ),
-          ),
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(10),
@@ -125,11 +374,19 @@ class _NotesPageState extends State<NotesPage> {
               ),
               itemBuilder: (context, index) {
                 final note = _notes[index];
+                final isSelected = _selectedIndexes.contains(index);
+
                 return GestureDetector(
                   onTap: () {
-                    _showEditNoteDialog(index);
+                    if (_selectedIndexes.isNotEmpty) {
+                      _toggleSelection(index);
+                    } else {
+                      _showEditNoteDialog(index);
+                    }
                   },
+                  onLongPress: () => _toggleSelection(index),
                   child: Card(
+                    color: isSelected ? Colors.blue[200] : null,
                     elevation: 2,
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
@@ -157,23 +414,20 @@ class _NotesPageState extends State<NotesPage> {
                   ),
                 );
               },
-
             ),
           ),
         ],
       ),
-      floatingActionButton: SizedBox(
-        width: 56,
-        height: 56,
-        child: FloatingActionButton(
-          onPressed: _showAddNoteDialog,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          backgroundColor: Colors.yellow,
-          child: const Icon(Icons.add),
+      floatingActionButton: _selectedIndexes.isEmpty
+          ? FloatingActionButton(
+        onPressed: _showAddNoteDialog,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
-      ),
+        backgroundColor: Colors.yellow,
+        child: const Icon(Icons.add),
+      )
+          : null,
     );
   }
 }

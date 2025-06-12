@@ -3,7 +3,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:notepad/constants/color_scheme.dart';
 import 'package:notepad/constants/constants.dart';
 import 'package:notepad/screen/pages/todos_page.dart';
-import 'pages/notes_page.dart';
+import 'package:notepad/screen/pages/notes_page.dart';
+import 'package:notepad/screen/pages/archive_page.dart';
+import 'package:notepad/screen/pages/trash_page.dart';
+import 'package:notepad/screen/pages/settings_page.dart';
+import 'package:notepad/screen/pages/label_page.dart';
+import 'package:notepad/screen/pages/drawer_menu.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,8 +19,10 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late PageController _pageController;
-
   int _currentPageIndex = 0;
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<NotesPageState> _notesPageKey = GlobalKey<NotesPageState>();
 
   @override
   void initState() {
@@ -29,9 +36,58 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  void _navigateTo(String page) {
+    Navigator.pop(context); // Tutup drawer
+
+    if (page == 'catatan') {
+      // Kalo yang dipilih "catatan", cukup balikin ke page utama (tanpa push)
+      setState(() {
+        _currentPageIndex = 0;
+      });
+      return;
+    }
+
+    Widget targetPage;
+    switch (page) {
+      case 'arsip':
+        targetPage = ArchivePage(
+          onUnarchive: () {
+            Navigator.pop(context); // Balik ke MainScreen
+            _pageController.jumpToPage(0); // Pastikan tab NotesPage aktif
+            _notesPageKey.currentState?.reloadNotes(); // Panggil reloadNotes di NotesPage!
+          },
+        );
+        break;
+      case 'sampah':
+        targetPage = TrashPage(
+          onNotesRestored: () {
+            Navigator.pop(context); // Tutup halaman sampah
+            _pageController.jumpToPage(0); // Pastikan tab NotesPage aktif
+            _notesPageKey.currentState?.reloadNotes(); // Panggil reloadNotes di NotesPage!
+          },
+        );
+        break;
+      case 'setelan':
+        targetPage = const SettingsPage();
+        break;
+      case 'label':
+        targetPage = const LabelPage();
+        break;
+      default:
+        targetPage = const NotesPage();
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => targetPage),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: DrawerMenu(onItemSelected: _navigateTo),
       body: SafeArea(
         child: Column(
           children: [
@@ -39,7 +95,15 @@ class _MainScreenState extends State<MainScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               child: Row(
                 children: [
-                  // Teks Judul Dinamis
+                  // Tombol drawer (ikon garis tiga)
+                  IconButton(
+                    onPressed: () {
+                      _scaffoldKey.currentState?.openDrawer();
+                    },
+                    icon: const Icon(Icons.menu, color: Colors.white),
+                  ),
+                  const SizedBox(width: 8),
+                  // Judul halaman dinamis
                   Text(
                     _currentPageIndex == 0 ? 'Catatan' : 'Todos',
                     style: const TextStyle(
@@ -91,9 +155,9 @@ class _MainScreenState extends State<MainScreen> {
                     _currentPageIndex = index;
                   });
                 },
-                children: const [
-                  NotesPage(),
-                  TodosPage(),
+                children: [
+                  NotesPage(key: _notesPageKey),
+                  const TodosPage(),
                 ],
               ),
             ),
