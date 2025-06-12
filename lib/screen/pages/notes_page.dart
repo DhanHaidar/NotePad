@@ -13,8 +13,8 @@ class NotesPage extends StatefulWidget {
 
 class NotesPageState extends State<NotesPage> {
   late TextEditingController _inputSearchController;
-  List<Map<String, String>> _notes = [];
-  List<Map<String, String>> _allNotes = [];
+  List<Map<String, dynamic>> _notes = [];
+  List<Map<String, dynamic>> _allNotes = [];
   Set<int> _selectedIndexes = {};
 
   @override
@@ -34,8 +34,14 @@ class NotesPageState extends State<NotesPage> {
           'title': e['title'] as String,
           'content': e['content'] as String,
           'labels': e['labels'] != null ? e['labels'] as String : '',
+          'pinned': e['pinned'] != null ? e['pinned'].toString() : 'false',
         };
       }).toList();
+
+      // Sort notes with pinned first
+      _allNotes.sort((a, b) => (b['pinned'] == 'true' ? 1 : 0)
+          .compareTo(a['pinned'] == 'true' ? 1 : 0));
+
       _notes = List.from(_allNotes);
       setState(() {});
     }
@@ -56,48 +62,54 @@ class NotesPageState extends State<NotesPage> {
     await prefs.setStringList('all_labels', labels.toList());
   }
 
-  Future<void> _moveToTrash(List<Map<String, String>> notesToTrash) async {
+  Future<void> _moveToTrash(List<Map<String, dynamic>> notesToTrash) async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString('trash_notes');
-    List<Map<String, String>> trashNotes = [];
+    final jsonString = prefs.getString('trash_notes') ?? '[]';
+    List<Map<String, dynamic>> trashNotes =
+    (json.decode(jsonString) as List).cast<Map<String, dynamic>>().toList();
 
-    if (jsonString != null) {
-      final List decoded = json.decode(jsonString);
-      trashNotes = decoded.cast<Map<String, dynamic>>().map((e) {
-        return {
-          'title': e['title'] as String,
-          'content': e['content'] as String,
-          'labels': e['labels'] != null ? e['labels'] as String : '',
-        };
-      }).toList();
-    }
+    trashNotes.addAll(notesToTrash.map((note) => {
+      'title': note['title'],
+      'content': note['content'],
+      'labels': note['labels'],
+      'pinned': 'false',
+      'deleted_at': DateTime.now().toIso8601String(),
+    }));
 
-    trashNotes.addAll(notesToTrash);
-
-    final updatedJson = json.encode(trashNotes);
-    await prefs.setString('trash_notes', updatedJson);
+    await prefs.setString('trash_notes', json.encode(trashNotes));
   }
 
-  Future<void> _moveToArchive(List<Map<String, String>> notesToArchive) async {
+  Future<void> _moveToArchive(List<Map<String, dynamic>> notesToArchive) async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString('archive_notes');
-    List<Map<String, String>> archiveNotes = [];
+    final jsonString = prefs.getString('archive_notes') ?? '[]';
+    List<Map<String, dynamic>> archiveNotes =
+    (json.decode(jsonString) as List).cast<Map<String, dynamic>>().toList();
 
-    if (jsonString != null) {
-      final List decoded = json.decode(jsonString);
-      archiveNotes = decoded.cast<Map<String, dynamic>>().map((e) {
-        return {
-          'title': e['title'] as String,
-          'content': e['content'] as String,
-          'labels': e['labels'] != null ? e['labels'] as String : '',
-        };
-      }).toList();
-    }
+    archiveNotes.addAll(notesToArchive.map((note) => {
+      'title': note['title'],
+      'content': note['content'],
+      'labels': note['labels'],
+      'pinned': 'false',
+      'archived_at': DateTime.now().toIso8601String(),
+    }));
 
-    archiveNotes.addAll(notesToArchive);
+    await prefs.setString('archive_notes', json.encode(archiveNotes));
 
-    final updatedJson = json.encode(archiveNotes);
-    await prefs.setString('archive_notes', updatedJson);
+    // Remove from main notes
+    setState(() {
+      _allNotes.removeWhere((note) => notesToArchive.contains(note));
+      _notes = List.from(_allNotes);
+      _selectedIndexes.clear();
+    });
+
+    await _saveNotes();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${notesToArchive.length} catatan diarsipkan'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showAddNoteDialog() {
@@ -110,6 +122,7 @@ class NotesPageState extends State<NotesPage> {
               'title': title,
               'content': content,
               'labels': '',
+              'pinned': 'false',
             };
             _allNotes.add(newNote);
             _applySearch(_inputSearchController.text);
@@ -134,6 +147,7 @@ class NotesPageState extends State<NotesPage> {
               'title': updatedTitle,
               'content': updatedContent,
               'labels': _allNotes[realIndex]['labels'] ?? '',
+              'pinned': _allNotes[realIndex]['pinned'] ?? 'false',
             };
             _applySearch(_inputSearchController.text);
           });
@@ -176,40 +190,53 @@ class NotesPageState extends State<NotesPage> {
   }
 
   void _handleDeleteSelected() async {
+    if (_selectedIndexes.isEmpty) return;
+
     final selectedNotes = _selectedIndexes.map((i) => _notes[i]).toList();
 
     setState(() {
-      for (var note in selectedNotes) {
-        _allNotes.remove(note);
-      }
+      _allNotes.removeWhere((note) => selectedNotes.contains(note));
       _applySearch(_inputSearchController.text);
       _selectedIndexes.clear();
     });
 
     await _moveToTrash(selectedNotes);
     await _saveNotes();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${selectedNotes.length} catatan dipindahkan ke trash'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handlePinSelected() {
-    _clearSelection();
+    if (_selectedIndexes.isEmpty) return;
+
+    setState(() {
+      for (var index in _selectedIndexes) {
+        final note = _notes[index];
+        final realIndex = _allNotes.indexOf(note);
+        _allNotes[realIndex]['pinned'] =
+        (_allNotes[realIndex]['pinned'] == 'true') ? 'false' : 'true';
+      }
+      // Re-sort after changing pin status
+      _allNotes.sort((a, b) => (b['pinned'] == 'true' ? 1 : 0)
+          .compareTo(a['pinned'] == 'true' ? 1 : 0));
+      _applySearch(_inputSearchController.text);
+      _clearSelection();
+    });
+    _saveNotes();
   }
 
   void _handleArchiveSelected() async {
-    final selectedNotes = _selectedIndexes.map((i) => _notes[i]).toList();
-
-    setState(() {
-      for (var note in selectedNotes) {
-        _allNotes.remove(note);
-      }
-      _applySearch(_inputSearchController.text);
-      _selectedIndexes.clear();
-    });
-
-    await _moveToArchive(selectedNotes);
-    await _saveNotes();
+    if (_selectedIndexes.isEmpty) return;
+    await _moveToArchive(_selectedIndexes.map((i) => _notes[i]).toList());
   }
 
   void _handleLabelSelected() {
+    if (_selectedIndexes.isEmpty) return;
     _showLabelDialog();
   }
 
@@ -244,7 +271,7 @@ class NotesPageState extends State<NotesPage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('Tambah / Pilih Label'),
+              title: const Text('Tambah/Pilih Label'),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
@@ -285,9 +312,7 @@ class NotesPageState extends State<NotesPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text('Batal'),
                 ),
                 TextButton(
@@ -301,7 +326,6 @@ class NotesPageState extends State<NotesPage> {
                     for (var index in _selectedIndexes) {
                       final note = _notes[index];
                       final realIndex = _allNotes.indexOf(note);
-
                       _allNotes[realIndex]['labels'] =
                           json.encode(selectedLabels.toList());
                     }
@@ -309,7 +333,7 @@ class NotesPageState extends State<NotesPage> {
                     await _saveLabelsToPrefs(allLabels);
                     await _saveNotes();
                     _clearSelection();
-                    Navigator.of(context).pop();
+                    if (mounted) Navigator.pop(context);
                     setState(() {});
                   },
                   child: const Text('Simpan'),
@@ -331,10 +355,22 @@ class NotesPageState extends State<NotesPage> {
       ),
       title: Text('${_selectedIndexes.length} dipilih'),
       actions: [
-        IconButton(icon: const Icon(Icons.label), onPressed: _handleLabelSelected),
-        IconButton(icon: const Icon(Icons.push_pin), onPressed: _handlePinSelected),
-        IconButton(icon: const Icon(Icons.archive), onPressed: _handleArchiveSelected),
-        IconButton(icon: const Icon(Icons.delete), onPressed: _handleDeleteSelected),
+        IconButton(
+          icon: const Icon(Icons.label),
+          onPressed: _handleLabelSelected,
+        ),
+        IconButton(
+          icon: const Icon(Icons.push_pin),
+          onPressed: _handlePinSelected,
+        ),
+        IconButton(
+          icon: const Icon(Icons.archive),
+          onPressed: _handleArchiveSelected,
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete),
+          onPressed: _handleDeleteSelected,
+        ),
       ],
     );
   }
@@ -357,13 +393,18 @@ class NotesPageState extends State<NotesPage> {
               child: SearchInput(
                 controller: _inputSearchController,
                 hint: 'Cari Note...',
-                onChanged: (query) {
-                  _applySearch(query);
-                },
+                onChanged: _applySearch,
               ),
             ),
           Expanded(
-            child: GridView.builder(
+            child: _notes.isEmpty
+                ? const Center(
+              child: Text(
+                'Tidak ada catatan',
+                style: TextStyle(color: Colors.white),
+              ),
+            )
+                : GridView.builder(
               padding: const EdgeInsets.all(10),
               itemCount: _notes.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -375,15 +416,12 @@ class NotesPageState extends State<NotesPage> {
               itemBuilder: (context, index) {
                 final note = _notes[index];
                 final isSelected = _selectedIndexes.contains(index);
+                final isPinned = note['pinned'] == 'true';
 
                 return GestureDetector(
-                  onTap: () {
-                    if (_selectedIndexes.isNotEmpty) {
-                      _toggleSelection(index);
-                    } else {
-                      _showEditNoteDialog(index);
-                    }
-                  },
+                  onTap: () => _selectedIndexes.isNotEmpty
+                      ? _toggleSelection(index)
+                      : _showEditNoteDialog(index),
                   onLongPress: () => _toggleSelection(index),
                   child: Card(
                     color: isSelected ? Colors.blue[200] : null,
@@ -393,12 +431,20 @@ class NotesPageState extends State<NotesPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            note['title'] ?? '',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                          Row(
+                            children: [
+                              if (isPinned)
+                                const Icon(Icons.push_pin, size: 16),
+                              Expanded(
+                                child: Text(
+                                  note['title'] ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           Expanded(
