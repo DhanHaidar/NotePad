@@ -13,7 +13,13 @@ Aplikasi ini cocok banget buat pelajar, mahasiswa, pekerja kantoran, bahkan cont
 - Menyusun dan mengelola daftar tugas to-do-list harian
 - Menyimpan ide-ide atau inspirasi secara instan
 - Meningkatkan produktivitas pengguna dengan antarmuka yang sederhana dan intuitif
-- Memberikan alternatif pencatatan offline tanpa perlu bergantung pada koneksi internet
+- Memungkinkan pengguna untuk menyimpan catatan dengan keamanan dan privasi tinggi
+
+Memberikan fleksibilitas dalam pengelolaan catatan melalui kategori atau label
+
+Menyediakan fitur tambahan seperti pengingat atau ekspor file untuk mendukung kebutuhan pengguna modern
+
+
 
 # Features💎🪄
 
@@ -26,6 +32,6 @@ Berbagai macam fitur unggulan untuk mendukung produktivitas pengguna kita hadirk
 - ### Penghapusan Catatan
   Demi menjaga keteraturan data, pengguna diberikan kebebasan untuk menghapus catatan yang mungkin sudah tidak diperlukan lagi. Fitur ini juga akan membantu tampilan yang lebih bersih dan efisiensi pengelolaan data dalam aplikasi
 - ### Mode Gelap (Dark Mode)
-  *TulisAja* menyedeiakan opsi tampilan mode gelap untuk kenyamanan visual pengguna, terutama saat digunakan di tempat yang minim cahaya. Selain memberikan kesan modern, fitur ini juga dapat membantu mengatasi rasa bosan yang mungkin ada di benak user
+  *TulisAja* menyediakan opsi tampilan mode gelap untuk kenyamanan visual pengguna, terutama saat digunakan di tempat yang minim cahaya. Selain memberikan kesan modern, fitur ini juga dapat membantu mengatasi rasa bosan yang mungkin ada di benak user
 - ### Penyimpanan Lokal
   Seluruh catatan disimpan secara lokal di perangkat pengguna tanpa memerlukan akses internet. Fitur ini memastikan bahwa semua data dapat diakses kapan saja dan tetap aman meskipun kita membuka dalam kondisi offline
