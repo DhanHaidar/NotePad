@@ -139,6 +139,11 @@ class _TrashPageState extends State<TrashPage> {
           : AppBar(
         title: const Text('Sampah'),
         backgroundColor: Colors.black,
+        titleTextStyle: TextStyle(
+          color: Colors.white, // Ubah warna teks di sini
+          fontSize: 20, // Opsional: ubah ukuran font
+          fontWeight: FontWeight.bold, // Opsional: ubah ketebalan font
+        ),
       ),
       body: _trashNotes.isEmpty
           ? const Center(child: Text('Tidak ada catatan di sampah.'))

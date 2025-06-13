@@ -88,11 +88,8 @@ class _ArchivePageState extends State<ArchivePage> {
 
   Future<void> _unarchiveSelectedNotes() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // 1. Ambil catatan yang mau di-unarchive
     final unarchivedNotes = _selectedIndexes.map((index) => _archivedNotes[index]).toList();
 
-    // 2. Hapus catatan yang terpilih dari arsip
     setState(() {
       _archivedNotes.removeWhere((note) => unarchivedNotes.contains(note));
       _selectedIndexes.clear();
@@ -100,7 +97,6 @@ class _ArchivePageState extends State<ArchivePage> {
 
     await prefs.setString('archive_notes', json.encode(_archivedNotes));
 
-    // 3. Tambahkan catatan ke notes (catatan utama)
     final notesJson = prefs.getString('notes');
     List<Map<String, dynamic>> notes = [];
 
@@ -112,10 +108,7 @@ class _ArchivePageState extends State<ArchivePage> {
     notes.addAll(unarchivedNotes);
     await prefs.setString('notes', json.encode(notes));
 
-    // 4. Panggil callback untuk memuat ulang halaman utama
     widget.onUnarchive();
-
-
   }
 
   @override
@@ -139,6 +132,11 @@ class _ArchivePageState extends State<ArchivePage> {
           : AppBar(
         title: const Text('Arsip'),
         backgroundColor: Colors.black,
+        titleTextStyle: TextStyle(
+          color: Colors.white, // Ubah warna teks di sini
+          fontSize: 20, // Opsional: ubah ukuran font
+          fontWeight: FontWeight.bold, // Opsional: ubah ketebalan font
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -148,7 +146,14 @@ class _ArchivePageState extends State<ArchivePage> {
           ? const Center(
         child: Text('Tidak ada catatan di arsip'),
       )
-          : ListView.builder(
+          : GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // 2 cards per row
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 0.8, // Adjust card aspect ratio
+        ),
         itemCount: _archivedNotes.length,
         itemBuilder: (context, index) {
           final note = _archivedNotes[index];
@@ -156,37 +161,62 @@ class _ArchivePageState extends State<ArchivePage> {
           return GestureDetector(
             onLongPress: () => _onNoteLongPress(index),
             onTap: () => _onNoteTap(index),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Card(
-                color: isSelected ? Colors.deepPurple[100] : const Color(0xFFF5EFFC),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        note['title'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+            child: Card(
+              color: isSelected
+                  ? Colors.deepPurple[100]
+                  : const Color(0xFFF5EFFC),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      note['title'] ?? 'No Title',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Text(
                         note['content'] ?? '',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black87,
                         ),
+                        maxLines: 5,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
+                    ),
+                    if (note['labels']?.isNotEmpty ?? false)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Wrap(
+                          spacing: 4,
+                          children: note['labels']!
+                              .split(',')
+                              .where((label) => label.trim().isNotEmpty)
+                              .map((label) => Chip(
+                            label: Text(
+                              label.trim(),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                            backgroundColor: Colors.deepPurple[50],
+                            materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                          ))
+                              .toList(),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
