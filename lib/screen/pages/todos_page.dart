@@ -4,23 +4,26 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/search_input.dart';
 
+/// Kelas model untuk item To-Do
 class TodoItem {
-  final String id;
-  String text;
-  bool isDone;
+  final String id; // ID unik untuk setiap item
+  String text; // Teks/task yang harus dilakukan
+  bool isDone; // Status apakah task sudah selesai
 
   TodoItem({
     required this.id,
     required this.text,
-    this.isDone = false,
+    this.isDone = false, // Default status adalah belum selesai
   });
 
+  /// Konversi ke format JSON untuk penyimpanan
   Map<String, dynamic> toJson() => {
     'id': id,
     'text': text,
     'isDone': isDone,
   };
 
+  /// Membuat TodoItem dari JSON
   factory TodoItem.fromJson(Map<String, dynamic> json) {
     return TodoItem(
       id: json['id'],
@@ -30,6 +33,7 @@ class TodoItem {
   }
 }
 
+/// Halaman utama untuk manajemen To-Do List
 class TodosPage extends StatefulWidget {
   const TodosPage({Key? key}) : super(key: key);
 
@@ -38,35 +42,37 @@ class TodosPage extends StatefulWidget {
 }
 
 class _TodosPageState extends State<TodosPage> {
-  late TextEditingController _inputSearchController;
-  late TextEditingController _todoInputController;
-  List<TodoItem> _todos = [];
-  List<TodoItem> _filteredTodos = [];
+  late TextEditingController _inputSearchController; // Controller untuk pencarian
+  late TextEditingController _todoInputController; // Controller untuk input To-Do baru
+  List<TodoItem> _todos = []; // Daftar lengkap semua To-Do
+  List<TodoItem> _filteredTodos = []; // Daftar To-Do setelah difilter
 
   @override
   void initState() {
     super.initState();
     _inputSearchController = TextEditingController();
     _todoInputController = TextEditingController();
-    _loadTodosFromStorage();
+    _loadTodosFromStorage(); // Memuat data saat widget diinisialisasi
   }
 
+  /// Menambahkan To-Do baru
   void _addTodo() {
     final text = _todoInputController.text.trim();
     if (text.isNotEmpty) {
       setState(() {
         final newTodo = TodoItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: DateTime.now().millisecondsSinceEpoch.toString(), // ID unik berdasarkan timestamp
           text: text,
         );
         _todos.add(newTodo);
-        _filteredTodos = _todos;
-        _todoInputController.clear();
+        _filteredTodos = _todos; // Reset filter setelah menambah item baru
+        _todoInputController.clear(); // Bersihkan input field
       });
-      _saveTodosToStorage();
+      _saveTodosToStorage(); // Simpan perubahan
     }
   }
 
+  /// Memfilter To-Do berdasarkan teks pencarian
   void _filterTodos(String query) {
     setState(() {
       _filteredTodos = _todos
@@ -76,22 +82,32 @@ class _TodosPageState extends State<TodosPage> {
     });
   }
 
+  /// Mengubah status selesai/belum selesai
   void _toggleDone(int index) {
     setState(() {
       _filteredTodos[index].isDone = !_filteredTodos[index].isDone;
+
+      // Update item yang sesuai di _todos
+      final toggledTodo = _filteredTodos[index];
+      final todoIndex = _todos.indexWhere((todo) => todo.id == toggledTodo.id);
+      if (todoIndex != -1) {
+        _todos[todoIndex].isDone = toggledTodo.isDone;
+      }
     });
-    _saveTodosToStorage();
+    _saveTodosToStorage(); // Simpan perubahan
   }
 
+  /// Menghapus To-Do
   void _deleteTodo(int index) {
     final idToDelete = _filteredTodos[index].id;
     setState(() {
       _todos.removeWhere((todo) => todo.id == idToDelete);
       _filteredTodos.removeWhere((todo) => todo.id == idToDelete);
     });
-    _saveTodosToStorage();
+    _saveTodosToStorage(); // Simpan perubahan
   }
 
+  /// Menyimpan To-Do ke SharedPreferences
   Future<void> _saveTodosToStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final todoJsonList =
@@ -99,6 +115,7 @@ class _TodosPageState extends State<TodosPage> {
     await prefs.setStringList('todos', todoJsonList);
   }
 
+  /// Memuat To-Do dari SharedPreferences
   Future<void> _loadTodosFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final storedTodos = prefs.getStringList('todos');
@@ -107,7 +124,7 @@ class _TodosPageState extends State<TodosPage> {
         _todos = storedTodos
             .map((jsonStr) => TodoItem.fromJson(json.decode(jsonStr)))
             .toList();
-        _filteredTodos = _todos;
+        _filteredTodos = _todos; // Setel filter ke semua item saat pertama kali dimuat
       });
     }
   }
@@ -128,12 +145,15 @@ class _TodosPageState extends State<TodosPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
+              // Widget pencarian
               SearchInput(
                 controller: _inputSearchController,
                 hint: 'Search Todos',
                 onChanged: _filterTodos,
               ),
               const SizedBox(height: 16),
+
+              // Input untuk menambah To-Do baru
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -158,16 +178,18 @@ class _TodosPageState extends State<TodosPage> {
                       onPressed: _addTodo,
                     ),
                   ),
-                  onSubmitted: (_) => _addTodo(),
+                  onSubmitted: (_) => _addTodo(), // Tambahkan saat tombol enter ditekan
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Daftar To-Do
               if (_filteredTodos.isEmpty)
-                const Text('No To-Dos yet.')
+                const Text('No To-Dos yet.') // Pesan jika tidak ada To-Do
               else
                 ListView.builder(
                   shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(), // Untuk menggabungkan dengan SingleChildScrollView
                   itemCount: _filteredTodos.length,
                   itemBuilder: (context, index) {
                     final todo = _filteredTodos[index];
@@ -181,19 +203,19 @@ class _TodosPageState extends State<TodosPage> {
                       child: ListTile(
                         leading: Checkbox(
                           value: todo.isDone,
-                          onChanged: (_) => _toggleDone(index),
+                          onChanged: (_) => _toggleDone(index), // Toggle status selesai
                         ),
                         title: Text(
                           todo.text,
                           style: TextStyle(
                             decoration: todo.isDone
-                                ? TextDecoration.lineThrough
+                                ? TextDecoration.lineThrough // Coret teks jika selesai
                                 : null,
                           ),
                         ),
                         trailing: IconButton(
                           icon: SvgPicture.asset(
-                            'assets/icons/delete.svg',
+                            'assets/icons/delete.svg', // Icon hapus dalam format SVG
                             width: 24,
                             height: 24,
                             colorFilter: ColorFilter.mode(
@@ -201,7 +223,7 @@ class _TodosPageState extends State<TodosPage> {
                               BlendMode.srcIn,
                             ),
                           ),
-                          onPressed: () => _deleteTodo(index),
+                          onPressed: () => _deleteTodo(index), // Hapus item
                         ),
                       ),
                     );

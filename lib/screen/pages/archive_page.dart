@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'add_note_dialog.dart';
 
 class ArchivePage extends StatefulWidget {
-  final VoidCallback onUnarchive;
+  final VoidCallback onUnarchive; // Callback saat catatan di-unarchive
   const ArchivePage({super.key, required this.onUnarchive});
 
   @override
@@ -12,16 +12,17 @@ class ArchivePage extends StatefulWidget {
 }
 
 class _ArchivePageState extends State<ArchivePage> {
-  List<Map<String, String>> _archivedNotes = [];
-  Set<int> _selectedIndexes = {};
-  bool get _isSelectionMode => _selectedIndexes.isNotEmpty;
+  List<Map<String, String>> _archivedNotes = []; // Daftar catatan terarsip
+  Set<int> _selectedIndexes = {}; // Indeks catatan yang dipilih
+  bool get _isSelectionMode => _selectedIndexes.isNotEmpty; // Mode seleksi aktif?
 
   @override
   void initState() {
     super.initState();
-    _loadArchivedNotes();
+    _loadArchivedNotes(); // Muat catatan saat inisialisasi
   }
 
+  // Memuat catatan dari SharedPreferences
   Future<void> _loadArchivedNotes() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = prefs.getString('archive_notes');
@@ -38,6 +39,7 @@ class _ArchivePageState extends State<ArchivePage> {
     }
   }
 
+  // Membuka dialog edit catatan
   void _openEditDialog(String title, String content, int index) {
     showDialog(
       context: context,
@@ -52,23 +54,25 @@ class _ArchivePageState extends State<ArchivePage> {
               'labels': _archivedNotes[index]['labels'] ?? '',
             };
           });
-
+          // Simpan perubahan ke SharedPreferences
           final prefs = await SharedPreferences.getInstance();
-          final jsonString = json.encode(_archivedNotes);
-          await prefs.setString('archive_notes', jsonString);
+          await prefs.setString('archive_notes', json.encode(_archivedNotes));
         },
       ),
     );
   }
 
+  // Handle long press untuk mode seleksi
   void _onNoteLongPress(int index) {
     setState(() {
       _selectedIndexes.add(index);
     });
   }
 
+  // Handle tap pada catatan
   void _onNoteTap(int index) {
     if (_isSelectionMode) {
+      // Toggle seleksi jika dalam mode seleksi
       setState(() {
         if (_selectedIndexes.contains(index)) {
           _selectedIndexes.remove(index);
@@ -77,45 +81,44 @@ class _ArchivePageState extends State<ArchivePage> {
         }
       });
     } else {
+      // Buka edit dialog jika tidak dalam mode seleksi
       final note = _archivedNotes[index];
-      _openEditDialog(
-        note['title'] ?? '',
-        note['content'] ?? '',
-        index,
-      );
+      _openEditDialog(note['title'] ?? '', note['content'] ?? '', index);
     }
   }
 
+  // Unarchive catatan yang dipilih
   Future<void> _unarchiveSelectedNotes() async {
     final prefs = await SharedPreferences.getInstance();
-    final unarchivedNotes = _selectedIndexes.map((index) => _archivedNotes[index]).toList();
+    final unarchivedNotes = _selectedIndexes
+        .map((index) => _archivedNotes[index])
+        .toList();
 
     setState(() {
       _archivedNotes.removeWhere((note) => unarchivedNotes.contains(note));
       _selectedIndexes.clear();
     });
 
+    // Update data di SharedPreferences
     await prefs.setString('archive_notes', json.encode(_archivedNotes));
 
+    // Pindahkan catatan ke daftar utama
     final notesJson = prefs.getString('notes');
     List<Map<String, dynamic>> notes = [];
-
     if (notesJson != null) {
-      final decoded = json.decode(notesJson);
-      notes = decoded.cast<Map<String, dynamic>>().toList();
+      notes = json.decode(notesJson).cast<Map<String, dynamic>>().toList();
     }
-
     notes.addAll(unarchivedNotes);
     await prefs.setString('notes', json.encode(notes));
 
-    widget.onUnarchive();
+    widget.onUnarchive(); // Panggil callback untuk refresh halaman utama
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _isSelectionMode
-          ? AppBar(
+          ? AppBar( // AppBar mode seleksi
         backgroundColor: Colors.black,
         title: Text('${_selectedIndexes.length} selected'),
         leading: IconButton(
@@ -129,13 +132,13 @@ class _ArchivePageState extends State<ArchivePage> {
           ),
         ],
       )
-          : AppBar(
+          : AppBar( // AppBar normal
         title: const Text('Arsip'),
         backgroundColor: Colors.black,
-        titleTextStyle: TextStyle(
-          color: Colors.white, // Ubah warna teks di sini
-          fontSize: 20, // Opsional: ubah ukuran font
-          fontWeight: FontWeight.bold, // Opsional: ubah ketebalan font
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -143,16 +146,16 @@ class _ArchivePageState extends State<ArchivePage> {
         ),
       ),
       body: _archivedNotes.isEmpty
-          ? const Center(
+          ? const Center( // Tampilan jika arsip kosong
         child: Text('Tidak ada catatan di arsip'),
       )
-          : GridView.builder(
+          : GridView.builder( // Tampilan grid catatan
         padding: const EdgeInsets.all(8),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // 2 cards per row
+          crossAxisCount: 2, // 2 card per baris
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
-          childAspectRatio: 0.8, // Adjust card aspect ratio
+          childAspectRatio: 0.8, // Rasio tinggi/lebar card
         ),
         itemCount: _archivedNotes.length,
         itemBuilder: (context, index) {
@@ -163,8 +166,8 @@ class _ArchivePageState extends State<ArchivePage> {
             onTap: () => _onNoteTap(index),
             child: Card(
               color: isSelected
-                  ? Colors.deepPurple[100]
-                  : const Color(0xFFF5EFFC),
+                  ? Colors.deepPurple[100] // Warna saat dipilih
+                  : const Color(0xFFF5EFFC), // Warna default
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -174,6 +177,7 @@ class _ArchivePageState extends State<ArchivePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Judul catatan
                     Text(
                       note['title'] ?? 'No Title',
                       style: const TextStyle(
@@ -185,6 +189,7 @@ class _ArchivePageState extends State<ArchivePage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
+                    // Isi catatan
                     Expanded(
                       child: Text(
                         note['content'] ?? '',
@@ -196,6 +201,7 @@ class _ArchivePageState extends State<ArchivePage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    // Label (jika ada)
                     if (note['labels']?.isNotEmpty ?? false)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
